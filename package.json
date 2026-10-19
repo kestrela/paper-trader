@@ -1,0 +1,14 @@
+{
+  "name": "paper-trader",
+  "version": "1.0.0",
+  "description": "币安 U 本位永续纸面交易模拟（不下单、无 API Key）",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "private": true,
+  "license": "MIT"
+}

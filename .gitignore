@@ -1,0 +1,10 @@
+node_modules/
+run.log
+keepalive-loop.log
+*.pid
+.state.json
+wecom_state.json
+equity.csv
+trades.jsonl
+.wecom_url
+archive_*/

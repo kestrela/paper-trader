@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: paper-trader
+    runtime: node
+    plan: free
+    region: singapore
+    buildCommand: "npm install --omit=dev || true"
+    startCommand: node app.js
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: WECOM_WEBHOOK_URL
+        sync: false
+      - key: INITIAL_USDT
+        value: "10000"
+      - key: LEVERAGE
+        value: "5"
