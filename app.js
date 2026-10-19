@@ -26,9 +26,17 @@ async function main() {
   console.log('=== 纸面交易模拟启动 ===');
   console.log(`时间: ${fmtTs(Date.now())}`);
   if (!SYMBOLS.length) {
-    UNIVERSE = await selectEquityUniverse();
-    SYMBOLS = UNIVERSE.map((u) => u.symbol);
-    if (!SYMBOLS.length) throw new Error('无符合流动性条件的股票型合约');
+    try {
+      UNIVERSE = await selectEquityUniverse();
+      SYMBOLS = UNIVERSE.map((u) => u.symbol);
+    } catch (e) {
+      console.warn('[选品] REST 失败，使用默认股票型合约:', e.message);
+    }
+    if (!SYMBOLS.length) {
+      SYMBOLS = (process.env.FALLBACK_SYMBOLS || 'SOXLUSDT,SNDKUSDT,SKHYNIXUSDT,MUUSDT,SPCXUSDT,DRAMUSDT')
+        .split(',').map((s) => s.trim().toUpperCase()).filter(Boolean);
+      console.warn(`[选品] 回退固定品种: ${SYMBOLS.join(',')}`);
+    }
   }
   console.log(`品种: ${SYMBOLS.join(', ')} | 杠杆: ${LEVERAGE}x | 本金: ${INITIAL} USDT | 不计手续费`);
   console.log('声明: 纸面模拟，非真实盈亏。高杠杆有强平风险（模拟）。');
@@ -187,7 +195,17 @@ function shutdown(feed, engine, prices) {
   process.exit(0);
 }
 
-main().catch((e) => {
-  console.error('启动失败', e);
-  process.exit(1);
-});
+async function bootWithRetry() {
+  let delay = 5000;
+  for (;;) {
+    try {
+      await main();
+      return;
+    } catch (e) {
+      console.error('启动失败，将重试:', e && e.message ? e.message : e);
+      await new Promise((r) => setTimeout(r, delay));
+      delay = Math.min(delay * 2, 120000);
+    }
+  }
+}
+bootWithRetry();

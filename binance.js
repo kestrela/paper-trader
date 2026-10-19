@@ -1,12 +1,13 @@
 /**
- * 币安 U 本位公共行情（零依赖）。fapi 451 时回退 www.binance.com/fapi。
+ * 币安 U 本位公共行情（零依赖）。多 base 回退；云主机常遇 418/451。
  */
 'use strict';
 
 const https = require('https');
 const { connect } = require('./ws_lite');
 
-const FAPI_BASES = (process.env.FAPI_BASE || 'https://fapi.binance.com,https://www.binance.com')
+const FAPI_BASES = (process.env.FAPI_BASE ||
+  'https://fapi.binance.com,https://www.binance.com,https://fapi1.binance.com,https://fapi2.binance.com,https://fapi3.binance.com')
   .split(',').map((s) => s.trim().replace(/\/$/, '')).filter(Boolean);
 
 const WS_BASE = (process.env.WS_BASE || 'wss://fstream.binance.com').replace(/\/$/, '');
@@ -14,7 +15,12 @@ const WS_PATHS = (process.env.WS_PATHS || '/market/stream,/stream').split(',').m
 
 function getJsonOnce(url, timeoutMs = 15000) {
   return new Promise((resolve, reject) => {
-    const req = https.get(url, { headers: { 'User-Agent': 'paper-trader/1.0' } }, (res) => {
+    const req = https.get(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; paper-trader/1.1)',
+        Accept: 'application/json',
+      },
+    }, (res) => {
       if (res.statusCode && (res.statusCode < 200 || res.statusCode >= 300)) {
         res.resume();
         reject(new Error(`HTTP ${res.statusCode} for ${url}`));
@@ -73,9 +79,6 @@ function parseKline(k) {
   };
 }
 
-/**
- * Multi-symbol WS: aggTrade + kline_1m + markPrice@1s
- */
 class MultiFeed {
   constructor(symbols, onUpdate) {
     this.symbols = symbols.map((s) => s.toUpperCase());
@@ -86,16 +89,21 @@ class MultiFeed {
     this.backoffMs = 1000;
     this.prices = {};
     this.marks = {};
-    this.klines = {}; // symbol -> array of closed+current
+    this.klines = {};
     this.lastMsgAt = 0;
     this.connected = false;
   }
 
   async bootstrap() {
     for (const sym of this.symbols) {
-      const raw = await fetchKlines(sym, '1m', 200);
-      this.klines[sym] = raw.map(parseKline);
-      this.prices[sym] = this.klines[sym][this.klines[sym].length - 1].c;
+      this.klines[sym] = this.klines[sym] || [];
+      try {
+        const raw = await fetchKlines(sym, '1m', 200);
+        this.klines[sym] = raw.map(parseKline);
+        this.prices[sym] = this.klines[sym][this.klines[sym].length - 1].c;
+      } catch (e) {
+        console.warn(`[bootstrap] ${sym} K线 REST 失败，等 WS: ${e.message}`);
+      }
       try {
         this.prices[sym] = await fetchPrice(sym);
       } catch (_) {}
